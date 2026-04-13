@@ -15,13 +15,13 @@
     "terminal-ai",
     "developer-tools"
   ],
-  "homepage": "https://github.com/ngvoicu/opencode-claude-memory",
+  "homepage": "https://github.com/ngvoicu/opencode-claude-code-memory",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ngvoicu/opencode-claude-memory.git"
+    "url": "https://github.com/ngvoicu/opencode-claude-code-memory.git"
   },
   "bugs": {
-    "url": "https://github.com/ngvoicu/opencode-claude-memory/issues"
+    "url": "https://github.com/ngvoicu/opencode-claude-code-memory/issues"
   },
   "license": "MIT",
   "author": "Gabriel Voicu",

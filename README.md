@@ -1,4 +1,4 @@
-# OpenCode Claude Memory Plugin
+# OpenCode Claude Code Memory Plugin
 
 Share Claude Code memory with OpenCode.
 
@@ -54,7 +54,7 @@ If the Claude memory directory is missing for a project, the plugin becomes a no
 ### 1. Clone The Repo
 
 ```bash
-git clone https://github.com/ngvoicu/opencode-claude-memory.git ~/Projects/ngvoicu/opencode-claude-memory
+git clone https://github.com/ngvoicu/opencode-claude-code-memory.git ~/Projects/ngvoicu/opencode-claude-code-memory
 ```
 
 ### 2. Add It To OpenCode
@@ -65,7 +65,7 @@ In `~/.config/opencode/opencode.json`:
 {
   "plugin": [
     [
-      "file:///Users/your-user/Projects/ngvoicu/opencode-claude-memory",
+      "file:///Users/your-user/Projects/ngvoicu/opencode-claude-code-memory",
       {
         "autoReview": true,
         "showLoadToast": true,
@@ -138,7 +138,7 @@ If you want OpenCode to behave as close as possible to Claude Code memory while 
 {
   "plugin": [
     [
-      "file:///Users/your-user/Projects/ngvoicu/opencode-claude-memory",
+      "file:///Users/your-user/Projects/ngvoicu/opencode-claude-code-memory",
       {
         "injectMode": "once",
         "initialLoadMode": "full",
@@ -203,7 +203,7 @@ The README, package metadata, and GitHub topics are all written around those use
 - it supports cross-project user memory and semantic retrieval
 - it is not tied to Claude Code's local memory file format
 
-`opencode-claude-memory` is intentionally narrower:
+`opencode-claude-code-memory` is intentionally narrower:
 
 - local-file based
 - Claude Code compatible
@@ -214,7 +214,7 @@ If you specifically want OpenCode to reuse Claude Code's existing memory files, 
 ## Development
 
 ```bash
-cd ~/Projects/ngvoicu/opencode-claude-memory
+cd ~/Projects/ngvoicu/opencode-claude-code-memory
 npm install
 npm run verify
 ```
