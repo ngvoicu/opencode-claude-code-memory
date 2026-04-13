@@ -2,7 +2,7 @@
 
 Share Claude Code memory with OpenCode.
 
-`opencode-claude-memory` is an OpenCode plugin for Claude Code memory. It loads local Claude Code memory into OpenCode sessions, lets OpenCode read and update the same files, and keeps that shared memory available across longer OpenCode conversations.
+`opencode-claude-code-memory` is an OpenCode plugin for Claude Code memory. It loads local Claude Code memory into OpenCode sessions, lets OpenCode read and update the same files, and keeps that shared memory available across longer OpenCode conversations.
 
 It lets OpenCode:
 
@@ -78,6 +78,36 @@ In `~/.config/opencode/opencode.json`:
 ```
 
 Restart OpenCode after editing the config.
+
+## npm Installation
+
+Once published to npm, you can install it directly from OpenCode config:
+
+```json
+{
+  "plugin": [
+    "opencode-claude-code-memory"
+  ]
+}
+```
+
+Or with plugin options:
+
+```json
+{
+  "plugin": [
+    [
+      "opencode-claude-code-memory",
+      {
+        "injectMode": "once",
+        "initialLoadMode": "full",
+        "compactionMode": "index",
+        "autoReview": true
+      }
+    ]
+  ]
+}
+```
 
 ## Configuration
 

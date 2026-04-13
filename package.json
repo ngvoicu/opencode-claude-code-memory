@@ -1,6 +1,6 @@
 {
-  "name": "opencode-claude-memory",
-  "version": "0.1.0",
+  "name": "opencode-claude-code-memory",
+  "version": "0.1.1",
   "description": "OpenCode plugin for Claude Code memory that loads local Claude Code memory into OpenCode sessions and syncs updates back to the same memory files.",
   "keywords": [
     "opencode",
@@ -25,6 +25,9 @@
   },
   "license": "MIT",
   "author": "Gabriel Voicu",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "index.js",
   "exports": {
