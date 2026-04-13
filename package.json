@@ -1,0 +1,49 @@
+{
+  "name": "opencode-claude-memory",
+  "version": "0.1.0",
+  "description": "OpenCode plugin for Claude Code memory that loads local Claude Code memory into OpenCode sessions and syncs updates back to the same memory files.",
+  "keywords": [
+    "opencode",
+    "opencode-ai",
+    "opencode-plugin",
+    "claude-code",
+    "claude-code-memory",
+    "claude-memory",
+    "anthropic-claude",
+    "persistent-memory",
+    "ai-coding-agent",
+    "terminal-ai",
+    "developer-tools"
+  ],
+  "homepage": "https://github.com/ngvoicu/opencode-claude-memory",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ngvoicu/opencode-claude-memory.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ngvoicu/opencode-claude-memory/issues"
+  },
+  "license": "MIT",
+  "author": "Gabriel Voicu",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "node --check index.js",
+    "test": "node --test",
+    "verify": "npm run check && npm run test"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.3.17"
+  }
+}
