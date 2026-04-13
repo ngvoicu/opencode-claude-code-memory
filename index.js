@@ -4,15 +4,14 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   statSync,
   writeFileSync,
 } from "fs";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "path";
 import { homedir } from "os";
-import { execSync } from "child_process";
 
 const DEFAULT_OPTIONS = Object.freeze({
-  memoryRoot: join(homedir(), ".claude", "projects"),
   injectMode: "once",
   initialLoadMode: "full",
   compactionMode: "index",
@@ -31,9 +30,15 @@ const DEFAULT_OPTIONS = Object.freeze({
 const VALID_INJECT_MODES = new Set(["once", "always"]);
 const VALID_LOAD_MODES = new Set(["full", "index"]);
 const VALID_COMPACTION_MODES = new Set(["none", "index", "full"]);
+const AUTO_MEMORY_HEADER = "# Auto Memory";
+const MAX_SANITIZED_LENGTH = 200;
 
 function encodeProjectPath(dir) {
   return ("-" + dir.replace(/\//g, "-")).replace(/^-+/, "-");
+}
+
+function defaultMemoryRoot() {
+  return join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "projects");
 }
 
 function resolveBooleanOption(value, fallback) {
@@ -54,7 +59,7 @@ function resolveStringOption(value, fallback) {
 
 function resolveOptions(rawOptions = {}) {
   return {
-    memoryRoot: resolveStringOption(rawOptions.memoryRoot, DEFAULT_OPTIONS.memoryRoot),
+    memoryRoot: resolveStringOption(rawOptions.memoryRoot, defaultMemoryRoot()),
     injectMode: resolveEnumOption(rawOptions.injectMode, DEFAULT_OPTIONS.injectMode, VALID_INJECT_MODES),
     initialLoadMode: resolveEnumOption(
       rawOptions.initialLoadMode,
@@ -91,32 +96,157 @@ function resolveOptions(rawOptions = {}) {
   };
 }
 
-function defaultGitRootResolver(projectDir) {
-  return execSync("git rev-parse --show-toplevel", {
-    cwd: projectDir,
-    encoding: "utf8",
-    stdio: ["pipe", "pipe", "pipe"],
-  }).trim();
+function djb2Hash(str) {
+  let hash = 0;
+  for (let index = 0; index < str.length; index += 1) {
+    hash = ((hash << 5) - hash + str.charCodeAt(index)) | 0;
+  }
+  return hash;
+}
+
+function sanitizePath(name) {
+  const sanitized = name.replace(/[^a-zA-Z0-9]/g, "-");
+  if (sanitized.length <= MAX_SANITIZED_LENGTH) return sanitized;
+  return `${sanitized.slice(0, MAX_SANITIZED_LENGTH)}-${Math.abs(djb2Hash(name)).toString(36)}`;
+}
+
+function findGitRoot(startPath) {
+  let current = resolve(startPath);
+  const root = current.substring(0, current.indexOf(sep) + 1) || sep;
+
+  while (true) {
+    try {
+      const gitPath = join(current, ".git");
+      const stats = statSync(gitPath);
+      if (stats.isDirectory() || stats.isFile()) {
+        return current.normalize("NFC");
+      }
+    } catch {}
+
+    if (current === root) break;
+
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  return null;
+}
+
+function resolveCanonicalRoot(gitRoot) {
+  try {
+    const gitPath = join(gitRoot, ".git");
+    const stats = statSync(gitPath);
+    if (stats.isDirectory()) {
+      return gitRoot.normalize("NFC");
+    }
+
+    const gitContent = readFileSync(gitPath, "utf8").trim();
+    if (!gitContent.startsWith("gitdir:")) {
+      return gitRoot.normalize("NFC");
+    }
+
+    const worktreeGitDir = resolve(gitRoot, gitContent.slice("gitdir:".length).trim());
+    const commonDir = resolve(
+      worktreeGitDir,
+      readFileSync(join(worktreeGitDir, "commondir"), "utf8").trim(),
+    );
+
+    if (resolve(dirname(worktreeGitDir)) !== join(commonDir, "worktrees")) {
+      return gitRoot.normalize("NFC");
+    }
+
+    const backlink = realpathSync(readFileSync(join(worktreeGitDir, "gitdir"), "utf8").trim());
+    if (backlink !== join(realpathSync(gitRoot), ".git")) {
+      return gitRoot.normalize("NFC");
+    }
+
+    if (commonDir.endsWith(`${sep}.git`)) {
+      return dirname(commonDir).normalize("NFC");
+    }
+
+    return commonDir.normalize("NFC");
+  } catch {
+    return gitRoot.normalize("NFC");
+  }
+}
+
+function findCanonicalGitRoot(startPath) {
+  const gitRoot = findGitRoot(startPath);
+  if (!gitRoot) return null;
+  return resolveCanonicalRoot(gitRoot);
+}
+
+function resolveClaudeMemoryDir(
+  projectDir,
+  memoryRoot,
+  { resolveCanonicalRoot: resolveProjectRoot = findCanonicalGitRoot } = {},
+) {
+  const canonicalRoot = resolveProjectRoot(projectDir) ?? projectDir;
+  return join(memoryRoot, sanitizePath(canonicalRoot), "memory");
+}
+
+function findLegacyClaudeMemoryDir(
+  projectDir,
+  memoryRoot,
+  { exists = existsSync, resolveCanonicalRoot: resolveProjectRoot = findCanonicalGitRoot } = {},
+) {
+  const candidates = [join(memoryRoot, encodeProjectPath(projectDir), "memory")];
+  const canonicalRoot = resolveProjectRoot(projectDir);
+  if (canonicalRoot && canonicalRoot !== projectDir) {
+    candidates.push(join(memoryRoot, encodeProjectPath(canonicalRoot), "memory"));
+  }
+
+  for (const candidate of candidates) {
+    if (exists(candidate)) return candidate;
+  }
+
+  return null;
 }
 
 function findClaudeMemoryDir(
   projectDir,
   memoryRoot,
-  { exists = existsSync, resolveGitRoot = defaultGitRootResolver } = {},
+  { exists = existsSync, resolveCanonicalRoot: resolveProjectRoot = findCanonicalGitRoot } = {},
 ) {
-  const encoded = encodeProjectPath(projectDir);
-  const exactPath = join(memoryRoot, encoded, "memory");
-  if (exists(exactPath)) return exactPath;
+  const preferredPath = resolveClaudeMemoryDir(projectDir, memoryRoot, {
+    resolveCanonicalRoot: resolveProjectRoot,
+  });
+  if (exists(preferredPath)) return preferredPath;
 
-  try {
-    const gitRoot = resolveGitRoot(projectDir);
-    if (!gitRoot) return null;
-    const gitEncoded = encodeProjectPath(gitRoot);
-    const gitPath = join(memoryRoot, gitEncoded, "memory");
-    if (exists(gitPath)) return gitPath;
-  } catch {}
+  const legacyPath = findLegacyClaudeMemoryDir(projectDir, memoryRoot, {
+    exists,
+    resolveCanonicalRoot: resolveProjectRoot,
+  });
+  if (legacyPath) return legacyPath;
 
   return null;
+}
+
+function listMarkdownFiles(memoryDir, relativeDir = "") {
+  const currentDir = relativeDir ? join(memoryDir, relativeDir) : memoryDir;
+  const results = [];
+
+  try {
+    const entries = readdirSync(currentDir, { withFileTypes: true }).sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
+
+    for (const entry of entries) {
+      const relativePath = relativeDir ? join(relativeDir, entry.name) : entry.name;
+
+      if (entry.isDirectory()) {
+        results.push(...listMarkdownFiles(memoryDir, relativePath));
+        continue;
+      }
+
+      if (entry.isFile() && entry.name.endsWith(".md")) {
+        results.push(relativePath);
+      }
+    }
+  } catch {}
+
+  return results;
 }
 
 function readAllMemoryFiles(memoryDir) {
@@ -126,15 +256,13 @@ function readAllMemoryFiles(memoryDir) {
   const index = existsSync(indexPath) ? readFileSync(indexPath, "utf8") : null;
 
   const topics = {};
-  try {
-    for (const entry of readdirSync(memoryDir).sort()) {
-      if (entry === "MEMORY.md" || !entry.endsWith(".md")) continue;
-      const fullPath = join(memoryDir, entry);
-      if (statSync(fullPath).isFile()) {
-        topics[entry] = readFileSync(fullPath, "utf8");
-      }
-    }
-  } catch {}
+  for (const relativePath of listMarkdownFiles(memoryDir)) {
+    if (relativePath === "MEMORY.md") continue;
+
+    try {
+      topics[relativePath] = readFileSync(join(memoryDir, relativePath), "utf8");
+    } catch {}
+  }
 
   return { index, topics };
 }
@@ -155,7 +283,7 @@ function buildInitialMemoryContext(memoryDir, config) {
   const { index, topics } = readAllMemoryFiles(memoryDir);
   if (!index) return null;
 
-  let memoryContext = "## Claude Code Memory (from previous sessions)\n\n";
+  let memoryContext = `${AUTO_MEMORY_HEADER}\n\n## Claude Code Memory\n\n`;
   memoryContext +=
     "This memory was loaded at the start of the session. Use the `claude_memory` tool to search, read, or update it later.\n\n";
   memoryContext += `### MEMORY.md\n\n${index}`;
@@ -219,6 +347,74 @@ function resolveMemoryFilePath(memoryDir, filePath) {
   return null;
 }
 
+function shouldIgnoreMemoryContext(query) {
+  if (process.env.OPENCODE_MEMORY_IGNORE === "1") return true;
+  if (!query) return false;
+
+  const normalized = query.toLowerCase();
+  return (
+    /(ignore|don't use|do not use|without|skip)\s+(the\s+)?memory/.test(normalized) ||
+    /memory\s+(should be|must be)?\s*ignored/.test(normalized)
+  );
+}
+
+function extractUserQuery(message) {
+  if (!message || typeof message !== "object") return undefined;
+
+  if (typeof message.content === "string") {
+    return message.content;
+  }
+
+  if (!Array.isArray(message.parts)) return undefined;
+
+  const text = message.parts
+    .map((part) => {
+      if (!part || typeof part !== "object") return "";
+      return typeof part.text === "string" ? part.text : "";
+    })
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  return text || undefined;
+}
+
+function getLastUserQuery(messages) {
+  if (!Array.isArray(messages)) return {};
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const role = typeof message?.info?.role === "string" ? message.info.role : message?.role;
+    if (role !== "user") continue;
+
+    const query = extractUserQuery(message);
+    const sessionID =
+      typeof message?.info?.sessionID === "string"
+        ? message.info.sessionID
+        : typeof message?.sessionID === "string"
+          ? message.sessionID
+          : undefined;
+
+    return { query, sessionID };
+  }
+
+  return {};
+}
+
+function isAutoMemoryPart(part) {
+  return (
+    !!part &&
+    typeof part === "object" &&
+    typeof part.text === "string" &&
+    part.text.includes(AUTO_MEMORY_HEADER)
+  );
+}
+
+function getSessionIDFromInput(input) {
+  if (!input || typeof input !== "object") return undefined;
+  return typeof input.sessionID === "string" ? input.sessionID : undefined;
+}
+
 function isPathInsideDirectory(baseDirectory, targetDirectory, filePath) {
   if (!filePath) return false;
   const resolvedPath = resolve(baseDirectory, filePath);
@@ -242,6 +438,8 @@ function getSessionState(stateMap, sessionID) {
 
   state = {
     loaded: false,
+    ignoreMemoryContext: false,
+    lastUserQuery: undefined,
     reviewing: false,
     lastReviewedMessageCount: 0,
     lastMemoryUpdateToastAt: 0,
@@ -258,13 +456,15 @@ export const ClaudeMemoryPlugin = async (ctx, rawOptions = {}) => {
   let memoryDirCache;
   function getMemoryDir() {
     if (memoryDirCache !== undefined) return memoryDirCache;
-    memoryDirCache = findClaudeMemoryDir(directory, config.memoryRoot);
+    memoryDirCache =
+      findClaudeMemoryDir(directory, config.memoryRoot) ??
+      resolveClaudeMemoryDir(directory, config.memoryRoot);
     return memoryDirCache;
   }
 
   function logError(scope, error) {
     if (!config.debug) return;
-    console.error(`[opencode-claude-memory] ${scope}`, error);
+    console.error(`[opencode-claude-code-memory] ${scope}`, error);
   }
 
   async function showToast(title, message, variant = "info", duration = 2500) {
@@ -278,32 +478,51 @@ export const ClaudeMemoryPlugin = async (ctx, rawOptions = {}) => {
   }
 
   return {
-    "chat.message": async (input, output) => {
-      const state = getSessionState(sessionState, input.sessionID);
+    "experimental.chat.messages.transform": async (_input, output) => {
+      const messages = Array.isArray(output.messages) ? output.messages : [];
+      const { query, sessionID } = getLastUserQuery(messages);
+      if (!sessionID) return;
+
+      const state = getSessionState(sessionState, sessionID);
+      state.lastUserQuery = query;
+      state.ignoreMemoryContext = shouldIgnoreMemoryContext(query);
+
+      if (!state.ignoreMemoryContext) return;
+
+      output.messages = messages
+        .map((message) => {
+          const role =
+            typeof message?.info?.role === "string" ? message.info.role : typeof message?.role === "string" ? message.role : "";
+          if (role !== "system" || !Array.isArray(message.parts)) return message;
+
+          const parts = message.parts.filter((part) => !isAutoMemoryPart(part));
+          return { ...message, parts };
+        })
+        .filter((message) => !Array.isArray(message.parts) || message.parts.length > 0);
+    },
+
+    "experimental.chat.system.transform": async (input, output) => {
+      const sessionID = getSessionIDFromInput(input);
+      if (!sessionID) return;
+
+      const state = getSessionState(sessionState, sessionID);
+      if (state.ignoreMemoryContext) return;
       if (config.injectMode === "once" && state.loaded) return;
 
       const memoryDir = getMemoryDir();
-      if (!memoryDir) return;
 
       try {
         const memoryContext = buildInitialMemoryContext(memoryDir, config);
         if (!memoryContext) return;
 
-        output.parts.unshift({
-          id: `prt-claude-memory-${Date.now()}`,
-          sessionID: input.sessionID,
-          messageID: output.message.id,
-          type: "text",
-          text: memoryContext,
-          synthetic: true,
-        });
-
+        output.system.push(memoryContext);
         state.loaded = true;
+
         if (config.showLoadToast) {
           await showToast("Memory", "Claude memory loaded for this session", "info", 2000);
         }
       } catch (error) {
-        logError("chat.message", error);
+        logError("experimental.chat.system.transform", error);
       }
     },
 
@@ -410,7 +629,8 @@ Use the write and edit tools to create or update these files. If there is nothin
 
     "experimental.session.compacting": async (_input, output) => {
       const memoryDir = getMemoryDir();
-      if (!memoryDir) return;
+      const sessionID = getSessionIDFromInput(_input);
+      if (sessionID && getSessionState(sessionState, sessionID).ignoreMemoryContext) return;
 
       try {
         const memoryContext = buildCompactionMemoryContext(memoryDir, config);
@@ -581,15 +801,20 @@ export const _internal = {
   buildInitialMemoryContext,
   encodeProjectPath,
   findClaudeMemoryDir,
+  findCanonicalGitRoot,
   getToolFilePath,
   isPathInsideDirectory,
+  listMarkdownFiles,
   readAllMemoryFiles,
+  resolveClaudeMemoryDir,
   resolveMemoryFilePath,
   resolveOptions,
+  sanitizePath,
+  shouldIgnoreMemoryContext,
   trimIndex,
 };
 
 export default {
-  id: "opencode-claude-memory",
+  id: "opencode-claude-code-memory",
   server: ClaudeMemoryPlugin,
 };

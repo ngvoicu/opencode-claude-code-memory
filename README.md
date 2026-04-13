@@ -30,24 +30,28 @@ OpenCode has a strong plugin API, but it does not natively read Claude Code memo
 - no hosted memory service
 - no extra sync layer
 
-If the Claude memory directory is missing for a project, the plugin becomes a no-op.
+If the Claude memory directory is missing for a project, the plugin stays quiet until there is memory to load, but the tool and review flows can still create the shared memory directory when needed.
 
 ## Features
 
 - One-time session memory injection for better efficiency than re-injecting memory on every prompt
 - Shared memory files between Claude Code and OpenCode
+- Claude-compatible canonical git-root and worktree resolution
+- Recursive topic-file loading, reading, and search
 - `claude_memory` tool with `list`, `read`, `search`, `add`, and `update`
 - Optional idle-session review that can save new learnings back into Claude memory
+- Turn-level memory suppression when you tell OpenCode to ignore memory
 - Toast notifications for memory load, review, and updates
 - Compaction context support so memory remains visible after long-session summarization
 - Safer file handling that keeps tool-driven writes inside the Claude memory directory
 
 ## How It Works
 
-1. The plugin maps the current project path to Claude Code's memory directory layout under `~/.claude/projects`.
+1. The plugin maps the current project or worktree to Claude Code's memory directory layout under `~/.claude/projects`.
 2. On the first message of a session, it injects memory context into OpenCode.
 3. The agent can later use the `claude_memory` tool to inspect or update memory files.
-4. If enabled, the plugin can ask OpenCode to review an idle session and write useful learnings back to Claude memory.
+4. If you say to ignore memory for a turn, the plugin suppresses its injected memory context for that request.
+5. If enabled, the plugin can ask OpenCode to review an idle session and write useful learnings back to Claude memory.
 
 ## Installation
 
@@ -129,6 +133,16 @@ All plugin options are optional.
 | `showUpdateToast` | `boolean` | `true` | Show a toast when memory files are updated |
 | `memoryUpdateToastDebounceMs` | `number` | `1500` | Debounce repeated update toasts |
 | `debug` | `boolean` | `false` | Log plugin errors to stderr |
+
+### Temporarily Ignore Memory
+
+If you want a fresh-context answer for one turn, say something like:
+
+- `ignore memory for this`
+- `do not use memory`
+- `answer without memory`
+
+You can also set `OPENCODE_MEMORY_IGNORE=1` to suppress injected memory context.
 
 ### Recommended Local Config
 

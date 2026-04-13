@@ -24,16 +24,30 @@ test("findClaudeMemoryDir prefers exact project match and falls back to git root
   const exactProject = "/Users/demo/project-a";
   const gitProject = "/Users/demo/project-b/subdir";
 
-  const exactMemoryDir = join(root, _internal.encodeProjectPath(exactProject), "memory");
-  const gitMemoryDir = join(root, _internal.encodeProjectPath("/Users/demo/project-b"), "memory");
+  const exactMemoryDir = join(root, _internal.sanitizePath(exactProject), "memory");
+  const gitMemoryDir = join(root, _internal.sanitizePath("/Users/demo/project-b"), "memory");
+  const legacyGitMemoryDir = join(root, _internal.encodeProjectPath("/Users/demo/project-b"), "memory");
 
   mkdirSync(exactMemoryDir, { recursive: true });
-  mkdirSync(gitMemoryDir, { recursive: true });
+  mkdirSync(legacyGitMemoryDir, { recursive: true });
 
-  assert.equal(_internal.findClaudeMemoryDir(exactProject, root), exactMemoryDir);
+  assert.equal(
+    _internal.findClaudeMemoryDir(exactProject, root, {
+      resolveCanonicalRoot: () => exactProject,
+    }),
+    exactMemoryDir,
+  );
   assert.equal(
     _internal.findClaudeMemoryDir(gitProject, root, {
-      resolveGitRoot: () => "/Users/demo/project-b",
+      resolveCanonicalRoot: () => "/Users/demo/project-b",
+    }),
+    legacyGitMemoryDir,
+  );
+
+  mkdirSync(gitMemoryDir, { recursive: true });
+  assert.equal(
+    _internal.findClaudeMemoryDir(gitProject, root, {
+      resolveCanonicalRoot: () => "/Users/demo/project-b",
     }),
     gitMemoryDir,
   );
@@ -48,9 +62,20 @@ test("buildInitialMemoryContext includes topic files in full mode", () => {
     initialLoadMode: "full",
   });
 
-  assert.match(context, /Claude Code Memory/);
+  assert.match(context, /# Auto Memory/);
   assert.match(context, /### MEMORY\.md/);
   assert.match(context, /### topic\.md/);
+});
+
+test("readAllMemoryFiles includes nested topic files", () => {
+  const memoryDir = mkdtempSync(join(tmpdir(), "claude-memory-recursive-"));
+  mkdirSync(join(memoryDir, "nested"), { recursive: true });
+  writeFileSync(join(memoryDir, "MEMORY.md"), "# Index");
+  writeFileSync(join(memoryDir, "nested", "topic.md"), "nested topic");
+
+  const files = _internal.readAllMemoryFiles(memoryDir);
+
+  assert.equal(files.topics["nested/topic.md"], "nested topic");
 });
 
 test("resolveMemoryFilePath rejects escaping the memory directory", () => {
@@ -58,4 +83,10 @@ test("resolveMemoryFilePath rejects escaping the memory directory", () => {
 
   assert.equal(_internal.resolveMemoryFilePath(memoryDir, "topic.md"), join(memoryDir, "topic.md"));
   assert.equal(_internal.resolveMemoryFilePath(memoryDir, "../outside.md"), null);
+});
+
+test("shouldIgnoreMemoryContext matches direct ignore-memory requests", () => {
+  assert.equal(_internal.shouldIgnoreMemoryContext("ignore memory for this answer"), true);
+  assert.equal(_internal.shouldIgnoreMemoryContext("answer without memory"), true);
+  assert.equal(_internal.shouldIgnoreMemoryContext("use memory normally"), false);
 });
