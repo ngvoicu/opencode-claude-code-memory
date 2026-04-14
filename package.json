@@ -18,7 +18,7 @@
   "homepage": "https://github.com/ngvoicu/opencode-claude-code-memory",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ngvoicu/opencode-claude-code-memory.git"
+    "url": "git+https://github.com/ngvoicu/opencode-claude-code-memory.git"
   },
   "bugs": {
     "url": "https://github.com/ngvoicu/opencode-claude-code-memory/issues"
