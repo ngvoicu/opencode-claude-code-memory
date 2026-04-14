@@ -55,7 +55,9 @@ If the Claude memory directory is missing for a project, the plugin stays quiet 
 
 ## Installation
 
-Install from npm, then add it to OpenCode.
+To install from npm, add the package name to OpenCode config.
+
+OpenCode installs npm plugins automatically at startup, so you do not need to run `npm install` yourself.
 
 In `~/.config/opencode/opencode.json`:
 
@@ -67,7 +69,7 @@ In `~/.config/opencode/opencode.json`:
 }
 ```
 
-Restart OpenCode after editing the config.
+Restart OpenCode after editing the config. On startup, OpenCode will install `opencode-claude-code-memory` automatically.
 
 ### With Options
 If you want to customize it:
