@@ -39,7 +39,7 @@ If the Claude memory directory is missing for a project, the plugin stays quiet 
 - Claude-compatible canonical git-root and worktree resolution
 - Recursive topic-file loading, reading, and search
 - `claude_memory` tool with `list`, `read`, `search`, `add`, and `update`
-- Optional idle-session review that can save new learnings back into Claude memory
+- Idle-session review that can save new learnings back into Claude memory
 - Turn-level memory suppression when you tell OpenCode to ignore memory
 - Toast notifications for memory load, review, and updates
 - Compaction context support so memory remains visible after long-session summarization
@@ -55,37 +55,9 @@ If the Claude memory directory is missing for a project, the plugin stays quiet 
 
 ## Installation
 
-### 1. Clone The Repo
-
-```bash
-git clone https://github.com/ngvoicu/opencode-claude-code-memory.git ~/Projects/ngvoicu/opencode-claude-code-memory
-```
-
-### 2. Add It To OpenCode
+Install from npm, then add it to OpenCode.
 
 In `~/.config/opencode/opencode.json`:
-
-```json
-{
-  "plugin": [
-    [
-      "file:///Users/your-user/Projects/ngvoicu/opencode-claude-code-memory",
-      {
-        "autoReview": true,
-        "showLoadToast": true,
-        "showReviewToast": true,
-        "showUpdateToast": true
-      }
-    ]
-  ]
-}
-```
-
-Restart OpenCode after editing the config.
-
-## npm Installation
-
-Once published to npm, you can install it directly from OpenCode config:
 
 ```json
 {
@@ -95,7 +67,10 @@ Once published to npm, you can install it directly from OpenCode config:
 }
 ```
 
-Or with plugin options:
+Restart OpenCode after editing the config.
+
+### With Options
+If you want to customize it:
 
 ```json
 {
@@ -113,6 +88,31 @@ Or with plugin options:
 }
 ```
 
+### Local Repo Instead Of npm
+
+If you prefer a local checkout:
+
+```bash
+git clone https://github.com/ngvoicu/opencode-claude-code-memory.git ~/Projects/ngvoicu/opencode-claude-code-memory
+```
+
+Then use:
+
+```json
+{
+  "plugin": [
+    [
+      "file:///Users/your-user/Projects/ngvoicu/opencode-claude-code-memory",
+      {
+        "showLoadToast": true,
+        "showReviewToast": true,
+        "showUpdateToast": true
+      }
+    ]
+  ]
+}
+```
+
 ## Configuration
 
 All plugin options are optional.
@@ -123,7 +123,7 @@ All plugin options are optional.
 | `injectMode` | `"once" \| "always"` | `"once"` | Inject memory once per session or on every message |
 | `initialLoadMode` | `"full" \| "index"` | `"full"` | Load full Claude memory or only `MEMORY.md` + topic list |
 | `compactionMode` | `"none" \| "index" \| "full"` | `"index"` | Extra memory context during OpenCode compaction |
-| `autoReview` | `boolean` | `false` | Review idle sessions and write useful learnings back to Claude memory |
+| `autoReview` | `boolean` | `true` | Review idle sessions and write useful learnings back to Claude memory |
 | `minMessagesForExtraction` | `number` | `4` | Minimum session message count before auto-review can run |
 | `minNewMessagesForReview` | `number` | `4` | Minimum new messages since the previous review |
 | `maxIndexLines` | `number` | `200` | Max lines from `MEMORY.md` in trimmed contexts |
@@ -156,8 +156,7 @@ If you want OpenCode to behave as close as possible to Claude Code memory while 
       {
         "injectMode": "once",
         "initialLoadMode": "full",
-        "compactionMode": "index",
-        "autoReview": true
+        "compactionMode": "index"
       }
     ]
   ]
@@ -207,7 +206,7 @@ The README, package metadata, and GitHub topics are all written around those use
 - This plugin only works with local Claude memory files.
 - It does not send memory to a hosted service on its own.
 - `claude_memory update` is restricted to paths inside the resolved Claude memory directory.
-- Automatic session review is optional and disabled by default.
+- Automatic session review is enabled by default and can be turned off with `autoReview: false`.
 
 ## Comparison: `opencode-supermemory`
 

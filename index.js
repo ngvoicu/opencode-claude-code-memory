@@ -15,7 +15,7 @@ const DEFAULT_OPTIONS = Object.freeze({
   injectMode: "once",
   initialLoadMode: "full",
   compactionMode: "index",
-  autoReview: false,
+  autoReview: true,
   minMessagesForExtraction: 4,
   minNewMessagesForReview: 4,
   maxIndexLines: 200,

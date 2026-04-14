@@ -8,7 +8,6 @@ import { _internal } from "../index.js";
 
 test("resolveOptions applies sane defaults and overrides", () => {
   const config = _internal.resolveOptions({
-    autoReview: true,
     initialLoadMode: "index",
     memoryRoot: "/tmp/claude-projects",
   });
