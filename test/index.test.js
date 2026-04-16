@@ -18,38 +18,20 @@ test("resolveOptions applies sane defaults and overrides", () => {
   assert.equal(config.memoryRoot, "/tmp/claude-projects");
 });
 
-test("findClaudeMemoryDir prefers exact project match and falls back to git root", () => {
+test("findClaudeMemoryDir matches directory with sanitizePath and falls back to legacy encoding", () => {
   const root = mkdtempSync(join(tmpdir(), "claude-memory-root-"));
-  const exactProject = "/Users/demo/project-a";
-  const gitProject = "/Users/demo/project-b/subdir";
+  const projectA = "/Users/demo/project-a";
+  const projectB = "/Users/demo/project-b";
 
-  const exactMemoryDir = join(root, _internal.sanitizePath(exactProject), "memory");
-  const gitMemoryDir = join(root, _internal.sanitizePath("/Users/demo/project-b"), "memory");
-  const legacyGitMemoryDir = join(root, _internal.encodeProjectPath("/Users/demo/project-b"), "memory");
+  const sanitizedDir = join(root, _internal.sanitizePath(projectA), "memory");
+  const legacyDir = join(root, _internal.encodeProjectPath(projectB), "memory");
 
-  mkdirSync(exactMemoryDir, { recursive: true });
-  mkdirSync(legacyGitMemoryDir, { recursive: true });
+  mkdirSync(sanitizedDir, { recursive: true });
+  mkdirSync(legacyDir, { recursive: true });
 
-  assert.equal(
-    _internal.findClaudeMemoryDir(exactProject, root, {
-      resolveCanonicalRoot: () => exactProject,
-    }),
-    exactMemoryDir,
-  );
-  assert.equal(
-    _internal.findClaudeMemoryDir(gitProject, root, {
-      resolveCanonicalRoot: () => "/Users/demo/project-b",
-    }),
-    legacyGitMemoryDir,
-  );
-
-  mkdirSync(gitMemoryDir, { recursive: true });
-  assert.equal(
-    _internal.findClaudeMemoryDir(gitProject, root, {
-      resolveCanonicalRoot: () => "/Users/demo/project-b",
-    }),
-    gitMemoryDir,
-  );
+  assert.equal(_internal.findClaudeMemoryDir(projectA, root), sanitizedDir);
+  assert.equal(_internal.findClaudeMemoryDir(projectB, root), legacyDir);
+  assert.equal(_internal.findClaudeMemoryDir("/Users/demo/no-memory", root), null);
 });
 
 test("buildInitialMemoryContext includes topic files in full mode", () => {

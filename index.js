@@ -4,11 +4,9 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
-  realpathSync,
-  statSync,
   writeFileSync,
 } from "fs";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
 import { homedir } from "os";
 
 const DEFAULT_OPTIONS = Object.freeze({
@@ -110,115 +108,19 @@ function sanitizePath(name) {
   return `${sanitized.slice(0, MAX_SANITIZED_LENGTH)}-${Math.abs(djb2Hash(name)).toString(36)}`;
 }
 
-function findGitRoot(startPath) {
-  let current = resolve(startPath);
-  const root = current.substring(0, current.indexOf(sep) + 1) || sep;
-
-  while (true) {
-    try {
-      const gitPath = join(current, ".git");
-      const stats = statSync(gitPath);
-      if (stats.isDirectory() || stats.isFile()) {
-        return current.normalize("NFC");
-      }
-    } catch {}
-
-    if (current === root) break;
-
-    const parent = dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-
-  return null;
+function resolveClaudeMemoryDir(projectDir, memoryRoot) {
+  return join(memoryRoot, sanitizePath(projectDir), "memory");
 }
 
-function resolveCanonicalRoot(gitRoot) {
-  try {
-    const gitPath = join(gitRoot, ".git");
-    const stats = statSync(gitPath);
-    if (stats.isDirectory()) {
-      return gitRoot.normalize("NFC");
-    }
-
-    const gitContent = readFileSync(gitPath, "utf8").trim();
-    if (!gitContent.startsWith("gitdir:")) {
-      return gitRoot.normalize("NFC");
-    }
-
-    const worktreeGitDir = resolve(gitRoot, gitContent.slice("gitdir:".length).trim());
-    const commonDir = resolve(
-      worktreeGitDir,
-      readFileSync(join(worktreeGitDir, "commondir"), "utf8").trim(),
-    );
-
-    if (resolve(dirname(worktreeGitDir)) !== join(commonDir, "worktrees")) {
-      return gitRoot.normalize("NFC");
-    }
-
-    const backlink = realpathSync(readFileSync(join(worktreeGitDir, "gitdir"), "utf8").trim());
-    if (backlink !== join(realpathSync(gitRoot), ".git")) {
-      return gitRoot.normalize("NFC");
-    }
-
-    if (commonDir.endsWith(`${sep}.git`)) {
-      return dirname(commonDir).normalize("NFC");
-    }
-
-    return commonDir.normalize("NFC");
-  } catch {
-    return gitRoot.normalize("NFC");
-  }
-}
-
-function findCanonicalGitRoot(startPath) {
-  const gitRoot = findGitRoot(startPath);
-  if (!gitRoot) return null;
-  return resolveCanonicalRoot(gitRoot);
-}
-
-function resolveClaudeMemoryDir(
-  projectDir,
-  memoryRoot,
-  { resolveCanonicalRoot: resolveProjectRoot = findCanonicalGitRoot } = {},
-) {
-  const canonicalRoot = resolveProjectRoot(projectDir) ?? projectDir;
-  return join(memoryRoot, sanitizePath(canonicalRoot), "memory");
-}
-
-function findLegacyClaudeMemoryDir(
-  projectDir,
-  memoryRoot,
-  { exists = existsSync, resolveCanonicalRoot: resolveProjectRoot = findCanonicalGitRoot } = {},
-) {
-  const candidates = [join(memoryRoot, encodeProjectPath(projectDir), "memory")];
-  const canonicalRoot = resolveProjectRoot(projectDir);
-  if (canonicalRoot && canonicalRoot !== projectDir) {
-    candidates.push(join(memoryRoot, encodeProjectPath(canonicalRoot), "memory"));
-  }
+function findClaudeMemoryDir(projectDir, memoryRoot, { exists = existsSync } = {}) {
+  const candidates = [
+    join(memoryRoot, sanitizePath(projectDir), "memory"),
+    join(memoryRoot, encodeProjectPath(projectDir), "memory"),
+  ];
 
   for (const candidate of candidates) {
     if (exists(candidate)) return candidate;
   }
-
-  return null;
-}
-
-function findClaudeMemoryDir(
-  projectDir,
-  memoryRoot,
-  { exists = existsSync, resolveCanonicalRoot: resolveProjectRoot = findCanonicalGitRoot } = {},
-) {
-  const preferredPath = resolveClaudeMemoryDir(projectDir, memoryRoot, {
-    resolveCanonicalRoot: resolveProjectRoot,
-  });
-  if (exists(preferredPath)) return preferredPath;
-
-  const legacyPath = findLegacyClaudeMemoryDir(projectDir, memoryRoot, {
-    exists,
-    resolveCanonicalRoot: resolveProjectRoot,
-  });
-  if (legacyPath) return legacyPath;
 
   return null;
 }
@@ -801,7 +703,6 @@ export const _internal = {
   buildInitialMemoryContext,
   encodeProjectPath,
   findClaudeMemoryDir,
-  findCanonicalGitRoot,
   getToolFilePath,
   isPathInsideDirectory,
   listMarkdownFiles,
