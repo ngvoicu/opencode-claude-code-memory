@@ -1,6 +1,6 @@
 {
   "name": "opencode-claude-code-memory",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "OpenCode plugin for Claude Code memory that loads local Claude Code memory into OpenCode sessions and syncs updates back to the same memory files.",
   "keywords": [
     "opencode",

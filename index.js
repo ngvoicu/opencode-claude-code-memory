@@ -393,9 +393,7 @@ export const ClaudeMemoryPlugin = async (ctx, rawOptions = {}) => {
 
       output.messages = messages
         .map((message) => {
-          const role =
-            typeof message?.info?.role === "string" ? message.info.role : typeof message?.role === "string" ? message.role : "";
-          if (role !== "system" || !Array.isArray(message.parts)) return message;
+          if (!Array.isArray(message.parts)) return message;
 
           const parts = message.parts.filter((part) => !isAutoMemoryPart(part));
           return { ...message, parts };
@@ -403,8 +401,8 @@ export const ClaudeMemoryPlugin = async (ctx, rawOptions = {}) => {
         .filter((message) => !Array.isArray(message.parts) || message.parts.length > 0);
     },
 
-    "experimental.chat.system.transform": async (input, output) => {
-      const sessionID = getSessionIDFromInput(input);
+    "chat.message": async (input, output) => {
+      const sessionID = input.sessionID;
       if (!sessionID) return;
 
       const state = getSessionState(sessionState, sessionID);
@@ -417,14 +415,21 @@ export const ClaudeMemoryPlugin = async (ctx, rawOptions = {}) => {
         const memoryContext = buildInitialMemoryContext(memoryDir, config);
         if (!memoryContext) return;
 
-        output.system.push(memoryContext);
+        output.parts.unshift({
+          id: `prt_claude-memory-${Date.now()}`,
+          sessionID,
+          messageID: output.message.id,
+          type: "text",
+          text: memoryContext,
+          synthetic: true,
+        });
         state.loaded = true;
 
         if (config.showLoadToast) {
           await showToast("Memory", "Claude memory loaded for this session", "info", 2000);
         }
       } catch (error) {
-        logError("experimental.chat.system.transform", error);
+        logError("chat.message", error);
       }
     },
 
