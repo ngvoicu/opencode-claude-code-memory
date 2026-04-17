@@ -14,8 +14,8 @@ const DEFAULT_OPTIONS = Object.freeze({
   initialLoadMode: "full",
   compactionMode: "index",
   autoReview: true,
-  minMessagesForExtraction: 4,
-  minNewMessagesForReview: 4,
+  minMessagesForExtraction: 10,
+  minNewMessagesForReview: 8,
   maxIndexLines: 200,
   maxIndexBytes: 25 * 1024,
   showLoadToast: true,
@@ -469,20 +469,26 @@ export const ClaudeMemoryPlugin = async (ctx, rawOptions = {}) => {
             parts: [
               {
                 type: "text",
-                text: `Review this conversation and extract any learnings, preferences, or patterns worth remembering for future sessions. Write them to the Claude Code memory files at:
+                text: `Silently review this conversation for anything genuinely worth remembering in future sessions. The strong default is to write NOTHING. Most conversations produce no memory-worthy content — that is normal and expected.
 
 Memory directory: ${memoryDir}
 Index file: ${join(memoryDir, "MEMORY.md")}
 
-Rules:
-- Keep MEMORY.md under 200 lines — it's an index that links to topic files
-- Create or update topic files (for example: project_architecture.md, debugging_patterns.md) for detailed notes
-- Use markdown format
-- Focus on build commands, debugging insights, architecture decisions, code style preferences, and workflow habits
-- Only write something if it would genuinely be useful in a future session
-- Do NOT write anything that is already in CLAUDE.md or AGENTS.md
+Only write if the content clears ALL of these bars:
+- It would be expensive to re-derive next session (not obvious from the code, git history, CLAUDE.md, or AGENTS.md)
+- It is durable — a stable preference, a non-obvious architectural decision, a hard-won debugging insight, or project context a future session could not reconstruct
+- It is specific and actionable, not a vague summary of what happened
 
-Use the write and edit tools to create or update these files. If there is nothing worth remembering, reply with a single line and do not write any files.`,
+Do NOT write:
+- Summaries of what was just done (the diff and git log already cover this)
+- Facts derivable from reading the code
+- Restatements of CLAUDE.md / AGENTS.md
+- Ephemeral task state or in-progress work
+- "Nice to have" notes that fail the expense-to-rederive test
+
+If anything qualifies: update an existing topic file before creating a new one, keep entries terse, and keep MEMORY.md under 200 lines as an index only.
+
+If nothing qualifies (the common case): reply with a single short line and do not call write or edit. Do not create a file just to record that you reviewed the session.`,
                 synthetic: true,
               },
             ],
